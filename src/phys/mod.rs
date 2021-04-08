@@ -48,8 +48,9 @@ impl Armature {
             constraints: Vec::new(),
         }
     }
-    pub fn add_joint(&mut self, joint: Vector2) {
-        self.joints.push(Joint::new(joint))
+    pub fn add_joint(&mut self, joint: Vector2) -> JointId {
+        self.joints.push(Joint::new(joint));
+        self.joints.len() - 1
     }
     pub fn add_constraint<T: 'static + Constraint>(&mut self, constraint: T) {
         self.constraints.push(Box::new(constraint))

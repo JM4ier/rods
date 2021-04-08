@@ -70,6 +70,7 @@ impl Constraint for AngularConstraint {
     }
 }
 
+/// Keeps all joints in a box
 #[derive(Clone, Debug)]
 pub struct BoxConstraint {
     pub min: Vector2,
@@ -97,5 +98,18 @@ impl Constraint for BoxConstraint {
                 joint.velocity.x = 0.0;
             }
         }
+    }
+}
+
+/// Keeps a joint at a specific position
+#[derive(Clone, Debug)]
+pub struct FixPoint {
+    pub point: JointId,
+    pub position: Vector2,
+}
+
+impl Constraint for FixPoint {
+    fn apply(&self, joints: &mut [Joint], _: &Config) {
+        joints[self.point] = Joint::new(self.position);
     }
 }

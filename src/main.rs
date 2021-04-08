@@ -10,36 +10,74 @@ fn main() {
     let config = Config {
         stiffness: 300.0,
         damping: 100.0,
-        angle_stiffness: 1000.0,
+        angle_stiffness: 5000.0,
     };
 
     let mut arm = Armature::from_config(config);
     let circle_len = 10;
     let mut connections = Vec::new();
 
-    for i in 0..circle_len {
-        let angle = (i as f32) / (circle_len as f32) * 2.0 * PI;
-        let dir = Vector2::new(0.0, 150.0).rotate(angle);
-        let pos = Vector2::new(300.0, 200.0) + dir;
+    //for i in 0..circle_len {
+    //    let angle = (i as f32) / (circle_len as f32) * 2.0 * PI;
+    //    let dir = Vector2::new(0.0, 150.0).rotate(angle);
+    //    let pos = Vector2::new(300.0, 200.0) + dir;
 
-        let dist = DistanceConstraint {
-            from: i,
-            to: (i + 1) % circle_len,
-            distance: 60.0,
+    //    let dist = DistanceConstraint {
+    //        from: i,
+    //        to: (i + 1) % circle_len,
+    //        distance: 60.0,
+    //        weight: 1.0,
+    //    };
+
+    //    let ang = AngularConstraint {
+    //        a: i,
+    //        b: (i + 2) % circle_len,
+    //        pivot: (i + 1) % circle_len,
+    //        target_angle: 1.0 * PI,
+    //    };
+
+    //    arm.add_constraint(dist.clone());
+    //    arm.add_constraint(ang);
+    //    arm.add_joint(pos);
+    //    connections.push(dist);
+    //}
+
+    // tree
+    let dist = 10.0;
+    let mut point = arm.add_joint(Vector2::new(200.0, dist));
+    arm.add_constraint(FixPoint {
+        point,
+        position: Vector2::new(200.0, dist),
+    });
+
+    point = arm.add_joint(Vector2::new(200.0, 2.0 * dist));
+    arm.add_constraint(FixPoint {
+        point,
+        position: Vector2::new(200.0, 2.0 * dist),
+    });
+
+    for i in 3..30 {
+        let pos = Vector2::new(200.0 + 1.0 * i as Float, dist * (i as Float));
+        let new_point = arm.add_joint(pos);
+        let constr = DistanceConstraint {
+            from: point,
+            to: new_point,
+            distance: dist,
             weight: 1.0,
         };
+        arm.add_constraint(constr.clone());
+        connections.push(constr);
 
-        let ang = AngularConstraint {
-            a: i,
-            b: (i + 2) % circle_len,
-            pivot: (i + 1) % circle_len,
-            target_angle: 2.0 * PI,
-        };
+        if i > 2 {
+            arm.add_constraint(AngularConstraint {
+                a: point - 1,
+                b: point + 1,
+                pivot: point,
+                target_angle: 1.0 * PI,
+            });
+        }
 
-        arm.add_constraint(dist.clone());
-        arm.add_constraint(ang);
-        arm.add_joint(pos);
-        connections.push(dist);
+        point = new_point;
     }
 
     let bounds = BoxConstraint {
@@ -81,7 +119,7 @@ fn main() {
 
         for joint in arm.joints.iter() {
             let pos = tp(joint.position);
-            d.draw_circle_v(pos, 3.0, Color::RED);
+            //d.draw_circle_v(pos, 3.0, Color::RED);
         }
 
         let running_text;
