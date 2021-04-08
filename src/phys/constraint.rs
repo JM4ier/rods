@@ -11,7 +11,7 @@ pub struct DistanceConstraint {
 
 impl DistanceConstraint {
     pub fn gravity(&self) -> Vector2 {
-        Vector2::new(0.0, -self.weight)
+        Vector2::new(0.0, self.weight)
     }
 }
 
@@ -37,6 +37,13 @@ impl Constraint for DistanceConstraint {
 
         joints[a].forces += self.gravity() + spring + damp;
         joints[b].forces += self.gravity() - spring - damp;
+    }
+    fn visualize(&self, joints: &[Joint], draw: &mut RaylibDrawHandle) {
+        draw.draw_line_v(
+            joints[self.from].position,
+            joints[self.to].position,
+            Color::BLUE,
+        )
     }
 }
 
@@ -67,6 +74,9 @@ impl Constraint for AngularConstraint {
         joints[a].forces += vec_a * force;
         joints[b].forces += vec_b * force;
         joints[pivot].forces -= (vec_a + vec_b) * force;
+    }
+    fn visualize(&self, joints: &[Joint], draw: &mut RaylibDrawHandle) {
+        draw.draw_circle_v(joints[self.pivot].position, 1.0, Color::BLUE)
     }
 }
 
@@ -99,6 +109,20 @@ impl Constraint for BoxConstraint {
             }
         }
     }
+    fn visualize(&self, _: &[Joint], draw: &mut RaylibDrawHandle) {
+        let Self { min, max } = self;
+        let one = Vector2::new(1.0, 1.0);
+        let min = *min - one;
+        let max = *max + one;
+
+        let tl = Vector2::new(min.x, max.y);
+        let br = Vector2::new(max.x, min.y);
+
+        draw.draw_line_v(min, tl, Color::GRAY);
+        draw.draw_line_v(min, br, Color::GRAY);
+        draw.draw_line_v(max, tl, Color::GRAY);
+        draw.draw_line_v(max, br, Color::GRAY);
+    }
 }
 
 /// Keeps a joint at a specific position
@@ -111,5 +135,20 @@ pub struct FixPoint {
 impl Constraint for FixPoint {
     fn apply(&self, joints: &mut [Joint], _: &Config) {
         joints[self.point] = Joint::new(self.position);
+    }
+    fn visualize(&self, joints: &[Joint], draw: &mut RaylibDrawHandle) {
+        draw.draw_circle_v(joints[self.point].position, 1.0, Color::RED)
+    }
+}
+
+/// General speed damping
+#[derive(Clone, Debug)]
+pub struct Damping;
+
+impl Constraint for Damping {
+    fn apply(&self, joints: &mut [Joint], config: &Config) {
+        for joint in joints.iter_mut() {
+            joint.forces -= joint.velocity * config.damping;
+        }
     }
 }

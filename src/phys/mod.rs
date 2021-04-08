@@ -23,17 +23,38 @@ impl Joint {
     }
 }
 
-pub trait Constraint {
+pub trait Constraint: ConstraintClone {
     fn apply(&self, joints: &mut [Joint], config: &Config);
+    fn visualize(&self, _joints: &[Joint], _draw: &mut RaylibDrawHandle) {}
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Config {
     pub stiffness: Float,
     pub damping: Float,
     pub angle_stiffness: Float,
 }
 
+pub trait ConstraintClone {
+    fn dyn_clone(&self) -> Box<dyn Constraint>;
+}
+
+impl<T> ConstraintClone for T
+where
+    T: Constraint + Clone + 'static,
+{
+    fn dyn_clone(&self) -> Box<dyn Constraint> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Constraint> {
+    fn clone(&self) -> Self {
+        self.dyn_clone()
+    }
+}
+
+#[derive(Clone)]
 pub struct Armature {
     pub joints: Vec<Joint>,
     pub constraints: Vec<Box<dyn Constraint>>,
@@ -52,6 +73,12 @@ impl Armature {
         self.joints.push(Joint::new(joint));
         self.joints.len() - 1
     }
+    pub fn fixate(&mut self, joint: JointId) {
+        self.add_constraint(constraint::FixPoint {
+            point: joint,
+            position: self.joints[joint].position,
+        })
+    }
     pub fn add_constraint<T: 'static + Constraint>(&mut self, constraint: T) {
         self.constraints.push(Box::new(constraint))
     }
@@ -65,6 +92,11 @@ impl Armature {
         for joint in self.joints.iter_mut() {
             joint.velocity += joint.forces * dt;
             joint.position += joint.velocity * dt;
+        }
+    }
+    pub fn visualize(&self, draw: &mut RaylibDrawHandle) {
+        for constraint in self.constraints.iter() {
+            constraint.visualize(&self.joints, draw);
         }
     }
 }

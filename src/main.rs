@@ -1,131 +1,83 @@
 mod phys;
 mod prelude;
+mod scenario;
 use phys::constraint::*;
 use phys::*;
 use prelude::*;
 
 fn main() {
-    let (mut rl, thread) = raylib::init().size(640, 480).title("Hello, World").build();
+    let scenarios = scenario::scenarios();
+    let names = format!("{:?}", scenarios.iter().map(|(a, _)| a).collect::<Vec<_>>());
 
-    let config = Config {
-        stiffness: 300.0,
-        damping: 100.0,
-        angle_stiffness: 5000.0,
-    };
-
-    let mut arm = Armature::from_config(config);
-    let circle_len = 10;
-    let mut connections = Vec::new();
-
-    //for i in 0..circle_len {
-    //    let angle = (i as f32) / (circle_len as f32) * 2.0 * PI;
-    //    let dir = Vector2::new(0.0, 150.0).rotate(angle);
-    //    let pos = Vector2::new(300.0, 200.0) + dir;
-
-    //    let dist = DistanceConstraint {
-    //        from: i,
-    //        to: (i + 1) % circle_len,
-    //        distance: 60.0,
-    //        weight: 1.0,
-    //    };
-
-    //    let ang = AngularConstraint {
-    //        a: i,
-    //        b: (i + 2) % circle_len,
-    //        pivot: (i + 1) % circle_len,
-    //        target_angle: 1.0 * PI,
-    //    };
-
-    //    arm.add_constraint(dist.clone());
-    //    arm.add_constraint(ang);
-    //    arm.add_joint(pos);
-    //    connections.push(dist);
-    //}
-
-    // tree
-    let dist = 10.0;
-    let mut point = arm.add_joint(Vector2::new(200.0, dist));
-    arm.add_constraint(FixPoint {
-        point,
-        position: Vector2::new(200.0, dist),
-    });
-
-    point = arm.add_joint(Vector2::new(200.0, 2.0 * dist));
-    arm.add_constraint(FixPoint {
-        point,
-        position: Vector2::new(200.0, 2.0 * dist),
-    });
-
-    for i in 3..30 {
-        let pos = Vector2::new(200.0 + 1.0 * i as Float, dist * (i as Float));
-        let new_point = arm.add_joint(pos);
-        let constr = DistanceConstraint {
-            from: point,
-            to: new_point,
-            distance: dist,
-            weight: 1.0,
-        };
-        arm.add_constraint(constr.clone());
-        connections.push(constr);
-
-        if i > 2 {
-            arm.add_constraint(AngularConstraint {
-                a: point - 1,
-                b: point + 1,
-                pivot: point,
-                target_angle: 1.0 * PI,
-            });
+    let name = match std::env::args().nth(1) {
+        None => {
+            println!("Need name of demo. Possible demos are {}.", names);
+            println!("To pass a command line argument, use `cargo run -- <ARG>`");
+            return;
         }
-
-        point = new_point;
-    }
-
-    let bounds = BoxConstraint {
-        min: Vector2::new(10.0, 10.0),
-        max: Vector2::new(630.0, 470.0),
+        Some(n) => n,
     };
-    arm.add_constraint(bounds.clone());
+
+    for (title, scenario) in scenarios.into_iter() {
+        if title.to_lowercase() != name.to_lowercase() {
+            continue;
+        }
+        run(title, scenario);
+        return;
+    }
+    println!(
+        "No demo with name \"{}\". Possible demos are {}.",
+        name, names
+    );
+}
+
+fn run(title: &str, arm: Armature) {
+    let (mut rl, thread) = raylib::init().size(640, 480).title(title).build();
+
+    let mut m_arm = arm.clone();
 
     rl.set_target_fps(240);
 
     let mut running = false;
 
-    while !rl.window_should_close() {
-        if rl.is_key_released(KeyboardKey::KEY_SPACE) {
-            running = !running;
+    loop {
+        if rl.window_should_close() {
+            return;
         }
 
+        let key = rl.get_key_pressed();
         let mut d = rl.begin_drawing(&thread);
 
-        d.clear_background(Color::WHITE);
-
-        fn tp(pos: Vector2) -> Vector2 {
-            Vector2::new(pos.x, 480.0 - pos.y)
+        if let Some(key) = key {
+            use KeyboardKey::*;
+            match key {
+                KEY_SPACE => running = !running,
+                KEY_R => m_arm = arm.clone(),
+                _ => {}
+            }
         }
 
-        let BoxConstraint { min, max } = bounds;
-        let mm_0 = Vector2::new(min.x, max.y);
-        let mm_1 = Vector2::new(max.x, min.y);
-        d.draw_line_v(tp(min), tp(mm_0), Color::BLACK);
-        d.draw_line_v(tp(min), tp(mm_1), Color::BLACK);
-        d.draw_line_v(tp(max), tp(mm_0), Color::BLACK);
-        d.draw_line_v(tp(max), tp(mm_1), Color::BLACK);
-
-        for con in connections.iter() {
-            let from = tp(arm.joints[con.from].position);
-            let to = tp(arm.joints[con.to].position);
-            d.draw_line_v(from, to, Color::BLACK);
+        if d.is_key_down(KeyboardKey::KEY_C) {
+            d.clear_background(Color::BLACK);
         }
 
-        for joint in arm.joints.iter() {
-            let pos = tp(joint.position);
-            //d.draw_circle_v(pos, 3.0, Color::RED);
-        }
+        d.draw_rectangle(
+            0,
+            0,
+            640,
+            480,
+            Color {
+                a: 10,
+                ..Color::BLACK
+            },
+        );
+
+        m_arm.visualize(&mut d);
 
         let running_text;
         if running {
             for _ in 0..100 {
-                arm.apply_forces((0.2 * d.get_frame_time()).min(0.002));
+                m_arm.apply_forces((0.2 * d.get_frame_time()).min(0.001));
             }
             running_text = "running";
         } else {

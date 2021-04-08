@@ -56,7 +56,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tree-2d"
+name = "rods"
 version = "0.1.0"
 dependencies = [
  "raylib",
