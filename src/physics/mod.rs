@@ -1,14 +1,14 @@
 use crate::prelude::*;
 use std::ops::*;
 
-mod forces;
+pub mod forces;
 
 pub type JointId = usize;
 pub type RodId = usize;
 
 #[derive(Clone, Debug, Default)]
 pub struct Joint {
-    position: Vector2,
+    pub position: Vector2,
     velocity: Vector2,
     forces: Vector2,
     weight: Float,
@@ -45,7 +45,7 @@ pub struct Bounds {
 
 #[derive(Clone, Debug, Default)]
 pub struct World {
-    joints: Vec<Joint>,
+    pub joints: Vec<Joint>,
     inner: InnerWorld,
 }
 
@@ -56,6 +56,16 @@ pub struct InnerWorld {
     bounds: Vec<Bounds>,
     dt: Float,
     time: Float,
+
+    config: WorldConfig,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct WorldConfig {
+    pub rod_stiffness: Float,
+    pub rod_damping: Float,
+    pub angle_stiffness: Float,
+    pub general_damping: Float,
 }
 
 impl Deref for World {
@@ -71,18 +81,44 @@ impl DerefMut for World {
     }
 }
 
+impl Deref for InnerWorld {
+    type Target = WorldConfig;
+    fn deref(&self) -> &Self::Target {
+        &self.config
+    }
+}
+
+impl DerefMut for InnerWorld {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.config
+    }
+}
+
 trait Force {
     fn apply(&self, _joints: &mut [Joint], _data: &InnerWorld) {}
     fn visualize(&self, _world: &World, _draw: &mut RaylibDrawHandle) {}
 }
 
 impl World {
+    pub fn from_config(config: WorldConfig) -> Self {
+        Self {
+            joints: Vec::new(),
+            inner: InnerWorld {
+                config,
+                ..Default::default()
+            },
+        }
+    }
     pub fn add_joint(&mut self, pos: Vector2) -> JointId {
         self.joints.push(Joint::from_pos(pos));
         self.joints.len() - 1
     }
     pub fn add_rod(&mut self, ends: [JointId; 2], weight: Float) -> RodId {
         let dist = (self.joints[ends[0]].position - self.joints[ends[1]].position).length();
+
+        self.joints[ends[0]].weight += weight / 2.0;
+        self.joints[ends[1]].weight += weight / 2.0;
+
         self.rods.push(Rod { ends, dist, weight });
         self.rods.len() - 1
     }
@@ -92,6 +128,9 @@ impl World {
     }
     pub fn fix(&mut self, joint: JointId) {
         self.joints[joint].fix = true
+    }
+    pub fn add_bounds(&mut self, bound: Bounds) {
+        self.bounds.push(bound)
     }
 
     pub fn update(&mut self, dt: Float) {
@@ -109,7 +148,22 @@ impl World {
         }
 
         use forces::*;
-        apply_forces!(RodDistance, RodAngle);
+        apply_forces![RodDistance, RodAngle, Gravity, Wind, FixPoint, Bounding];
+
+        for joint in self.joints.iter_mut() {
+            joint.velocity += joint.forces / joint.weight * dt;
+            joint.position += joint.velocity * dt;
+            joint.forces = Vector2::zero();
+        }
+    }
+    pub fn visualize(&self, draw: &mut RaylibDrawHandle) {
+        for rod in self.rods.iter() {
+            draw.draw_line_v(
+                self.joints[rod.ends[0]].position,
+                self.joints[rod.ends[1]].position,
+                Color::BLUE,
+            )
+        }
     }
 
     fn angle_between(&self, a: JointId, b: JointId, c: JointId) -> Float {
@@ -125,9 +179,5 @@ fn angle_between(a: Vector2, b: Vector2, c: Vector2) -> Float {
     let dir_0 = (a - b).normalized();
     let dir_1 = (c - b).normalized();
 
-    let det = dir_0.x * dir_1.y - dir_0.y * dir_1.x;
-    let dot = dir_0.dot(dir_1);
-    let angle = det.atan2(dot);
-
-    angle
+    dir_0.det(dir_1).atan2(dir_0.dot(dir_1))
 }
