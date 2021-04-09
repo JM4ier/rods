@@ -16,6 +16,7 @@ fn pendulum() -> Armature {
         stiffness: 100.0,
         angle_stiffness: 0.0,
         damping: 1.0,
+        time: 0.0,
     };
     let mut arm = Armature::from_config(config);
 
@@ -55,6 +56,7 @@ fn elastic_rod() -> Armature {
         stiffness: 300.0,
         damping: 0.03,
         angle_stiffness: 5000.0,
+        time: 0.0,
     };
     let mut arm = Armature::from_config(config);
     let origin = Vector2::new(40.0, 440.0);
@@ -105,6 +107,7 @@ fn circle_gen(circle_len: usize, off_1: usize, off_2: usize) -> Armature {
         stiffness: 300.0,
         damping: 100.0,
         angle_stiffness: 80_000.0,
+        time: 0.0,
     };
 
     let mut arm = Armature::from_config(config);
@@ -146,6 +149,7 @@ fn trees() -> Armature {
         angle_stiffness: 50_000.0,
         damping: 0.08,
         stiffness: 100.0,
+        time: 0.0,
     };
     let mut arm = Armature::from_config(config);
 
@@ -214,6 +218,11 @@ fn trees() -> Armature {
     });
 
     arm.add_constraint(Damping);
+
+    arm.add_constraint(Wind {
+        period: 100.0,
+        strength: 10.0,
+    });
 
     arm
 }

@@ -77,7 +77,9 @@ fn run(title: &str, arm_fn: fn() -> Armature) {
         let running_text;
         if running {
             for _ in 0..100 {
-                m_arm.apply_forces((0.2 * d.get_frame_time()).min(0.001));
+                let dt = (0.2 * d.get_frame_time()).min(0.001);
+                m_arm.apply_forces(dt);
+                m_arm.config.time += dt;
             }
             running_text = "running";
         } else {

@@ -150,3 +150,21 @@ impl Constraint for Damping {
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct Wind {
+    pub period: Float,
+    pub strength: Float,
+}
+
+impl Constraint for Wind {
+    fn apply(&self, joints: &mut [Joint], config: &Config) {
+        let wind = Vector2::new(
+            self.strength * (2.0 * PI * config.time / self.period).sin(),
+            0.0,
+        );
+        for joint in joints.iter_mut() {
+            joint.forces += wind;
+        }
+    }
+}

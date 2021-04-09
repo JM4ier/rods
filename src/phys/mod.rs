@@ -33,6 +33,7 @@ pub struct Config {
     pub stiffness: Float,
     pub damping: Float,
     pub angle_stiffness: Float,
+    pub time: Float,
 }
 
 pub trait ConstraintClone {
