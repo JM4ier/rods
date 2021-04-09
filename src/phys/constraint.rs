@@ -54,9 +54,7 @@ impl Constraint for AngularConstraint {
         let dir_a = (joints[a].position - joints[pivot].position).normalized();
         let dir_b = (joints[b].position - joints[pivot].position).normalized();
 
-        let det = dir_a.x * dir_b.y - dir_a.y * dir_b.x;
-        let dot = dir_a.dot(dir_b);
-        let angle = det.atan2(dot);
+        let angle = angle_between(dir_a, Vector2::zero(), dir_b);
 
         let mut angle_dif = angle - self.target_angle;
         while angle_dif <= -PI {

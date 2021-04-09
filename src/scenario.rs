@@ -1,12 +1,13 @@
 use super::*;
 
-pub fn scenarios() -> Vec<(&'static str, Armature)> {
+pub fn scenarios() -> Vec<(&'static str, fn() -> Armature)> {
     vec![
-        ("pendulum", pendulum()),
-        ("elastic-rod", elastic_rod()),
-        ("stable-circle", stable_circle()),
-        ("weird-circle", weird_circle()),
-        ("soft-circle", soft_circle()),
+        ("pendulum", pendulum),
+        ("elastic-rod", elastic_rod),
+        ("stable-circle", stable_circle),
+        ("weird-circle", weird_circle),
+        ("soft-circle", soft_circle),
+        ("trees", trees),
     ]
 }
 
@@ -136,6 +137,83 @@ fn circle_gen(circle_len: usize, off_1: usize, off_2: usize) -> Armature {
         min: Vector2::new(10.0, 10.0),
         max: Vector2::new(630.0, 470.0),
     });
+
+    arm
+}
+
+fn trees() -> Armature {
+    let config = Config {
+        angle_stiffness: 50_000.0,
+        damping: 0.08,
+        stiffness: 100.0,
+    };
+    let mut arm = Armature::from_config(config);
+
+    let root = arm.add_joint(Vector2::new(320.0, 470.0));
+    let origin = arm.add_joint(Vector2::new(320.0, 400.0));
+    arm.fixate(root);
+    arm.fixate(origin);
+    arm.connect(root, origin, 0.0);
+
+    fn rand_float(from: Float, to: Float) -> Float {
+        rand::random::<Float>() * (to - from) + from
+    }
+
+    fn len() -> Float {
+        rand_float(0.7, 0.9)
+    }
+    fn ang() -> Float {
+        rand_float(0.0, 0.8)
+    }
+
+    fn generate_tree(
+        depth: usize,
+        arm: &mut Armature,
+        mut prev: JointId,
+        mut knot: JointId,
+        mut dir: Vector2,
+    ) {
+        let weight = dir.length() * 0.1;
+        dir = dir * len();
+
+        let bend = rand_float(-0.1, 0.1);
+        for _ in 0..3 {
+            let new = arm.add_joint(arm.joints[knot].position + dir);
+            arm.connect(knot, new, weight);
+            arm.connect_angle(prev, knot, new);
+            prev = knot;
+            knot = new;
+            dir = dir.rotate(bend);
+        }
+
+        if depth == 0 {
+            return;
+        }
+
+        let ldir = dir.rotate(-ang());
+        let rdir = dir.rotate(ang());
+
+        let lchild = arm.add_joint(arm.joints[knot].position + ldir);
+        let rchild = arm.add_joint(arm.joints[knot].position + rdir);
+
+        arm.connect_angle(prev, knot, lchild);
+        arm.connect_angle(prev, knot, rchild);
+
+        arm.connect(knot, lchild, weight);
+        arm.connect(knot, rchild, weight);
+
+        generate_tree(depth - 1, arm, knot, lchild, ldir);
+        generate_tree(depth - 1, arm, knot, rchild, rdir);
+    }
+
+    generate_tree(5, &mut arm, root, origin, Vector2::new(0.0, -30.0));
+
+    arm.add_constraint(BoxConstraint {
+        min: Vector2::new(10.0, 10.0),
+        max: Vector2::new(630.0, 470.0),
+    });
+
+    arm.add_constraint(Damping);
 
     arm
 }

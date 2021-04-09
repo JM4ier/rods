@@ -31,10 +31,10 @@ fn main() {
     );
 }
 
-fn run(title: &str, arm: Armature) {
+fn run(title: &str, arm_fn: fn() -> Armature) {
     let (mut rl, thread) = raylib::init().size(640, 480).title(title).build();
 
-    let mut m_arm = arm.clone();
+    let mut m_arm = arm_fn();
 
     rl.set_target_fps(240);
 
@@ -52,7 +52,7 @@ fn run(title: &str, arm: Armature) {
             use KeyboardKey::*;
             match key {
                 KEY_SPACE => running = !running,
-                KEY_R => m_arm = arm.clone(),
+                KEY_R => m_arm = arm_fn(),
                 _ => {}
             }
         }

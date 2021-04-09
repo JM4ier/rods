@@ -79,6 +79,27 @@ impl Armature {
             position: self.joints[joint].position,
         })
     }
+    pub fn connect(&mut self, from: JointId, to: JointId, weight: Float) {
+        self.add_constraint(constraint::DistanceConstraint {
+            from,
+            to,
+            weight,
+            distance: (self.joints[from].position - self.joints[to].position).length(),
+        });
+    }
+    pub fn connect_angle(&mut self, a: JointId, pivot: JointId, b: JointId) {
+        let target_angle = angle_between(
+            self.joints[a].position,
+            self.joints[pivot].position,
+            self.joints[b].position,
+        );
+        self.add_constraint(constraint::AngularConstraint {
+            a,
+            b,
+            pivot,
+            target_angle,
+        })
+    }
     pub fn add_constraint<T: 'static + Constraint>(&mut self, constraint: T) {
         self.constraints.push(Box::new(constraint))
     }
@@ -99,4 +120,15 @@ impl Armature {
             constraint.visualize(&self.joints, draw);
         }
     }
+}
+
+fn angle_between(a: Vector2, b: Vector2, c: Vector2) -> Float {
+    let dir_0 = (a - b).normalized();
+    let dir_1 = (c - b).normalized();
+
+    let det = dir_0.x * dir_1.y - dir_0.y * dir_1.x;
+    let dot = dir_0.dot(dir_1);
+    let angle = det.atan2(dot);
+
+    angle
 }
