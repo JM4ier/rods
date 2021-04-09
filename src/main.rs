@@ -1,8 +1,7 @@
-mod phys;
+mod physics;
 mod prelude;
 mod scenario;
-use phys::constraint::*;
-use phys::*;
+use physics::*;
 use prelude::*;
 
 fn main() {
@@ -31,10 +30,10 @@ fn main() {
     );
 }
 
-fn run(title: &str, arm_fn: fn() -> Armature) {
+fn run(title: &str, arm_fn: fn() -> World) {
     let (mut rl, thread) = raylib::init().size(640, 480).title(title).build();
 
-    let mut m_arm = arm_fn();
+    let mut world = arm_fn();
 
     rl.set_target_fps(240);
 
@@ -52,7 +51,7 @@ fn run(title: &str, arm_fn: fn() -> Armature) {
             use KeyboardKey::*;
             match key {
                 KEY_SPACE => running = !running,
-                KEY_R => m_arm = arm_fn(),
+                KEY_R => world = arm_fn(),
                 _ => {}
             }
         }
@@ -72,14 +71,13 @@ fn run(title: &str, arm_fn: fn() -> Armature) {
             },
         );
 
-        m_arm.visualize(&mut d);
+        world.visualize(&mut d);
 
         let running_text;
         if running {
             for _ in 0..100 {
                 let dt = (0.2 * d.get_frame_time()).min(0.001);
-                m_arm.apply_forces(dt);
-                m_arm.config.time += dt;
+                world.update(dt);
             }
             running_text = "running";
         } else {
