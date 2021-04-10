@@ -135,8 +135,29 @@ make_scenarios! {
             let weight = dir.length() * 0.01;
             dir = dir * len();
 
+            let mut early_branch = None;
+            if rand_float(0.0, 1.0) < 0.6 && depth > 0 {
+                early_branch = Some(rand::random::<usize>() % 3);
+            }
+
+            let ldir = dir.rotate(-ang());
+            let rdir = dir.rotate(ang());
+
+            let make_child = |world: &mut World, prev, knot: JointId, dir, weight| {
+                let child = world.add_joint(world.joints[knot].position + dir);
+                world.keep_angle([prev, knot, child]);
+                world.add_rod([knot, child], weight);
+                generate_tree(depth - 1, world, knot, child, dir);
+            };
+
             let bend = rand_float(-0.1, 0.1);
-            for _ in 0..3 {
+            for i in 0..4 {
+
+                if Some(i) == early_branch {
+                    let dir = dir.rotate(rand_float(-0.8, 0.8));
+                    make_child(world, prev, knot, dir, weight);
+                }
+
                 let new = world.add_joint(world.joints[knot].position + dir);
                 world.add_rod([knot, new], weight);
                 world.keep_angle([prev, knot, new]);
@@ -149,23 +170,11 @@ make_scenarios! {
                 return;
             }
 
-            let ldir = dir.rotate(-ang());
-            let rdir = dir.rotate(ang());
-
-            let lchild = world.add_joint(world.joints[knot].position + ldir);
-            let rchild = world.add_joint(world.joints[knot].position + rdir);
-
-            world.keep_angle([prev, knot, lchild]);
-            world.keep_angle([prev, knot, rchild]);
-
-            world.add_rod([knot, lchild], weight);
-            world.add_rod([knot, rchild], weight);
-
-            generate_tree(depth - 1, world, knot, lchild, ldir);
-            generate_tree(depth - 1, world, knot, rchild, rdir);
+            make_child(world, prev, knot, ldir, weight);
+            make_child(world, prev, knot, rdir, weight);
         }
 
-        generate_tree(5, &mut world, root, origin, Vector2::new(0.0, -30.0));
+        generate_tree(4, &mut world, root, origin, Vector2::new(0.0, -30.0));
 
         world.add_bounds(Bounds {
             min: Vector2::new(10.0, 10.0),
