@@ -61,7 +61,7 @@ impl Force for Gravity {
     fn apply(&self, joints: &mut [Joint], data: &InnerWorld) {
         for rod in data.rods.iter() {
             let [a, b] = rod.ends;
-            let gravity = Vector2::new(0.0, rod.weight);
+            let gravity = Vector2::new(0.0, 40.0 * rod.weight);
             joints[a].forces += gravity;
             joints[b].forces += gravity;
         }
@@ -76,18 +76,56 @@ impl Force for Damping {
     }
 }
 
+impl Wind {
+    #[inline]
+    fn is_blowing_at(&self, gust: &WindConfig, data: &InnerWorld, position: Vector2) -> bool {
+        let period = gust.low + gust.high;
+        let distance = gust.dir.dot(position);
+        let mut distance = (distance - gust.speed * data.time) % period;
+        if distance < 0.0 {
+            distance += period;
+        }
+
+        distance >= gust.low
+    }
+}
+
 impl Force for Wind {
     fn apply(&self, joints: &mut [Joint], data: &InnerWorld) {
-        let dir = Vector2::new(0.1, 0.0);
-        for rod in data.rods.iter() {
-            let [a, b] = rod.ends;
-            let rod_dir = joints[b].position - joints[a].position;
-            let force = dir.det(rod_dir.normalized());
-            let normal = rod_dir.rotate(PI * 0.5);
+        for gust in data.wind.iter() {
+            for rod in data.rods.iter() {
+                let [a, b] = rod.ends;
 
-            let force = normal * force;
-            joints[a].forces += force;
-            joints[b].forces += force;
+                let pos = (joints[a].position + joints[b].position) * 0.5;
+
+                if !self.is_blowing_at(gust, data, pos) {
+                    continue;
+                }
+
+                let rod_dir = joints[b].position - joints[a].position;
+                let normal = rod_dir.rotate(PI * 0.5);
+
+                let wind_velocity = gust.dir * gust.speed;
+                joints[a].forces -= normal
+                    * (wind_velocity - joints[a].velocity).det(rod_dir.normalized())
+                    * gust.viscosity;
+
+                joints[b].forces -= normal
+                    * (wind_velocity - joints[b].velocity).det(rod_dir.normalized())
+                    * gust.viscosity;
+            }
+        }
+    }
+
+    fn visualize(&self, data: &World, draw: &mut RaylibDrawHandle) {
+        for gust in data.wind.iter() {
+            for x in (0..640).step_by(10) {
+                for y in (0..480).step_by(10) {
+                    if Wind.is_blowing_at(gust, data, Vector2::new(x as Float, y as Float)) {
+                        draw.draw_pixel(x, y, Color::GREEN);
+                    }
+                }
+            }
         }
     }
 }

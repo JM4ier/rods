@@ -76,7 +76,7 @@ fn run(title: &str, arm_fn: fn() -> World) {
         let running_text;
         if running {
             for _ in 0..100 {
-                let dt = (0.2 * d.get_frame_time()).min(0.001);
+                let dt = (0.01 * d.get_frame_time()).min(0.001);
                 world.update(dt);
             }
             running_text = "running";

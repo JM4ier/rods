@@ -66,6 +66,21 @@ pub struct WorldConfig {
     pub rod_damping: Float,
     pub angle_stiffness: Float,
     pub general_damping: Float,
+    pub wind: Vec<WindConfig>,
+    pub time_scale: Option<Float>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct WindConfig {
+    /// direction of moving wind, may not be zero, normalized
+    pub dir: Vector2,
+    pub speed: Float,
+    /// Viscosity of gas
+    pub viscosity: Float,
+    /// how far between individual wind gusts
+    pub low: Float,
+    /// how long one wind gust is
+    pub high: Float,
 }
 
 impl Deref for World {
@@ -133,7 +148,11 @@ impl World {
         self.bounds.push(bound)
     }
 
-    pub fn update(&mut self, dt: Float) {
+    pub fn update(&mut self, mut dt: Float) {
+        if let Some(scale) = self.time_scale {
+            dt *= scale;
+        }
+
         self.dt = dt;
         self.time += dt;
 
@@ -148,7 +167,15 @@ impl World {
         }
 
         use forces::*;
-        apply_forces![RodDistance, RodAngle, Gravity, Wind, FixPoint, Bounding];
+        apply_forces![
+            RodDistance,
+            RodAngle,
+            Gravity,
+            Wind,
+            FixPoint,
+            Bounding,
+            Damping
+        ];
 
         for joint in self.joints.iter_mut() {
             joint.velocity += joint.forces / joint.weight * dt;
@@ -164,6 +191,7 @@ impl World {
                 Color::BLUE,
             )
         }
+        forces::Wind.visualize(&self, draw);
     }
 
     fn angle_between(&self, a: JointId, b: JointId, c: JointId) -> Float {
