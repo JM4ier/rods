@@ -1,16 +1,19 @@
 use super::*;
 
+pub type Generated = (World, Option<Box<dyn Fn(&World, &mut RaylibDrawHandle)>>);
+pub type Generator = fn() -> Generated;
+
 macro_rules! make_scenarios {
-    ($(fn $name:ident() -> World $body:block)*) => {
-        pub fn scenarios() -> Vec<(&'static str, fn() -> World)> {
-            vec![$((stringify!($name), $name as fn() -> World)),*]
+    ($(fn $name:ident() $body:block)*) => {
+        pub fn scenarios() -> Vec<(&'static str, Generator)> {
+            vec![$((stringify!($name), $name as Generator)),*]
         }
-        $(fn $name() -> World $body)*
+        $(fn $name() -> Generated $body)*
     }
 }
 
 make_scenarios! {
-    fn pendulum() -> World {
+    fn pendulum() {
         let wind = WindConfig {
             dir: Vector2::new(1.0, 0.0),
             speed: 250.0,
@@ -52,9 +55,9 @@ make_scenarios! {
             max: Vector2::new(630.0, 470.0),
         });
 
-        world
+        (world, None)
     }
-    fn elastic_rod() -> World {
+    fn elastic_rod() {
         let n = 20;
         let config = WorldConfig {
             rod_stiffness: 300.0,
@@ -81,10 +84,10 @@ make_scenarios! {
             world.fix(i);
         }
 
-        world
+        (world, None)
     }
 
-    fn tree() -> World {
+    fn tree() {
         let wind = WindConfig {
             dir: Vector2::new(1.0, 0.0),
             speed: 50.0,
@@ -103,13 +106,13 @@ make_scenarios! {
             rod_damping: 50.0,
             general_damping: 0.002,
             wind: vec![wind, other_wind],
-            time_scale: Some(3.0),
+            time_scale: Some(1.5),
             ..Default::default()
         };
         let mut world = World::from_config(config);
 
-        let root = world.add_joint(Vector2::new(320.0, 470.0));
-        let origin = world.add_joint(Vector2::new(320.0, 400.0));
+        let root = world.add_joint(Vector2::new(320.0, 479.0));
+        let origin = world.add_joint(Vector2::new(320.0, 478.0));
         world.fix(root);
         world.fix(origin);
 
@@ -125,12 +128,38 @@ make_scenarios! {
             rand_float(0.0, 0.8)
         }
 
+        fn col_gen(col: &str) -> Color {
+            let mut col = Color::from_hex(col).unwrap();
+            let rnd = 15;
+            if col.r > rnd && col.r < 255-rnd {
+                col.r -= rnd;
+                col.r += rand::random::<u8>() % (2*rnd);
+            }
+            if col.g > rnd && col.g < 255-rnd {
+                col.g -= rnd;
+                col.g += rand::random::<u8>() % (2*rnd);
+            }
+            if col.b > rnd && col.b < 255-rnd {
+                col.b -= rnd;
+                col.b += rand::random::<u8>() % (2*rnd);
+            }
+            col
+        }
+
+        struct Square {
+            rod: RodId,
+            pos: Vector2,
+            size: Float,
+            col: Color
+        }
+
         fn generate_tree(
             depth: usize,
             world: &mut World,
             mut prev: JointId,
             mut knot: JointId,
             mut dir: Vector2,
+            squares: &mut Vec<Square>,
         ) {
             let weight = dir.length() * 0.01;
             dir = dir * len();
@@ -143,11 +172,47 @@ make_scenarios! {
             let ldir = dir.rotate(-ang());
             let rdir = dir.rotate(ang());
 
-            let make_child = |world: &mut World, prev, knot: JointId, dir, weight| {
+            let mut add_branch = |world: &mut World, from: JointId, to: JointId, squares: &mut Vec<Square>| {
+                let rod = world.add_rod([from, to], weight);
+
+                let steps = 60;
+                for i in 0..steps {
+                    let i = i as Float / steps as Float;
+                    let pos = Vector2::new(i, rand_float(-0.3, 0.3));
+                    let mut col = col_gen("885E48");
+
+                    if pos.y < -0.1 {
+                        let sub = 1.0 - 3.0 * (-0.1 - pos.y);
+                        col.r = ((col.r as Float) * sub) as u8;
+                        col.g = ((col.g as Float) * sub) as u8;
+                        col.b = ((col.b as Float) * sub) as u8;
+                    }
+
+                    squares.push(Square {
+                        rod, pos, col, size: weight * 20.0
+                    });
+                }
+
+                if weight < 0.15 {
+                    for _ in 0..100 {
+                        let side = 4.0;
+                        squares.push(Square {
+                            rod,
+                            pos: Vector2::new(rand_float(0.0, 1.0), rand_float(-side, side)),
+                            col: col_gen("e22a00").fade(rand::random()),
+                            size: rand_float(3.0, 10.0),
+                        });
+                    }
+                }
+
+                rod
+            };
+
+            let mut make_child = |world: &mut World, prev, knot: JointId, dir, weight, squares: &mut Vec<_>| {
                 let child = world.add_joint(world.joints[knot].position + dir);
                 world.keep_angle([prev, knot, child]);
-                world.add_rod([knot, child], weight);
-                generate_tree(depth - 1, world, knot, child, dir);
+                add_branch(world, knot, child, squares);
+                generate_tree(depth - 1, world, knot, child, dir, squares);
             };
 
             let bend = rand_float(-0.1, 0.1);
@@ -155,11 +220,11 @@ make_scenarios! {
 
                 if Some(i) == early_branch {
                     let dir = dir.rotate(rand_float(-0.8, 0.8));
-                    make_child(world, prev, knot, dir, weight);
+                    make_child(world, prev, knot, dir, weight, squares);
                 }
 
                 let new = world.add_joint(world.joints[knot].position + dir);
-                world.add_rod([knot, new], weight);
+                add_branch(world, knot, new, squares);
                 world.keep_angle([prev, knot, new]);
                 prev = knot;
                 knot = new;
@@ -170,29 +235,41 @@ make_scenarios! {
                 return;
             }
 
-            make_child(world, prev, knot, ldir, weight);
-            make_child(world, prev, knot, rdir, weight);
+            make_child(world, prev, knot, ldir, weight, squares);
+            make_child(world, prev, knot, rdir, weight, squares);
         }
 
-        generate_tree(4, &mut world, root, origin, Vector2::new(0.0, -30.0));
+        let mut squares = Vec::new();
+        generate_tree(4, &mut world, root, origin, Vector2::new(0.0, -30.0), &mut squares);
 
         world.add_bounds(Bounds {
             min: Vector2::new(10.0, 10.0),
-            max: Vector2::new(630.0, 470.0),
+            max: Vector2::new(630.0, 480.0),
         });
 
-        world
+        (world, Some(Box::new(move |world, draw|{
+            draw.clear_background(Color::from_hex("A1D9E8").unwrap());
+
+            for square in squares.iter() {
+                let a = world.joints[world.rods[square.rod].ends[0]].position;
+                let b = world.joints[world.rods[square.rod].ends[1]].position;
+                let dir = b-a;
+                let pos = a + dir * square.pos.x + dir.rotate(-0.5 * PI) * square.pos.y - square.size * 0.5;
+
+                draw.draw_rectangle_v(pos, Vector2::one() * square.size, square.col);
+            }
+        })))
     }
 
 
-    fn stable_circle() -> World {
-        circle_gen(300, 2, 1)
+    fn stable_circle() {
+        (circle_gen(300, 2, 1), None)
     }
-    fn soft_circle() -> World {
-        circle_gen(1000, 2, 1)
+    fn soft_circle() {
+        (circle_gen(1000, 2, 1), None)
     }
-    fn weird_circle() -> World {
-        circle_gen(1000, 4, 2)
+    fn weird_circle() {
+        (circle_gen(1000, 4, 2), None)
     }
 }
 

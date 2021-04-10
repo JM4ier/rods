@@ -26,7 +26,7 @@ impl Joint {
 
 #[derive(Clone, Debug)]
 pub struct Rod {
-    ends: [JointId; 2],
+    pub ends: [JointId; 2],
     dist: Float,
     weight: Float,
 }
@@ -51,7 +51,7 @@ pub struct World {
 
 #[derive(Clone, Debug, Default)]
 pub struct InnerWorld {
-    rods: Vec<Rod>,
+    pub rods: Vec<Rod>,
     angles: Vec<Angle>,
     bounds: Vec<Bounds>,
     dt: Float,

@@ -3,6 +3,7 @@ mod prelude;
 mod scenario;
 use physics::*;
 use prelude::*;
+use scenario::*;
 
 fn main() {
     let scenarios = scenario::scenarios();
@@ -30,14 +31,16 @@ fn main() {
     );
 }
 
-fn run(title: &str, arm_fn: fn() -> World) {
+fn run(title: &str, generator: Generator) {
     let (mut rl, thread) = raylib::init().size(640, 480).title(title).build();
 
-    let mut world = arm_fn();
+    let (mut world, mut gfx) = generator();
 
     rl.set_target_fps(240);
 
     let mut running = false;
+    let mut draw_phys = true;
+    let mut clear = true;
 
     loop {
         if rl.window_should_close() {
@@ -51,12 +54,18 @@ fn run(title: &str, arm_fn: fn() -> World) {
             use KeyboardKey::*;
             match key {
                 KEY_SPACE => running = !running,
-                KEY_R => world = arm_fn(),
+                KEY_C => clear = !clear,
+                KEY_P => draw_phys = !draw_phys,
+                KEY_R => {
+                    let gen = generator();
+                    world = gen.0;
+                    gfx = gen.1;
+                }
                 _ => {}
             }
         }
 
-        if d.is_key_down(KeyboardKey::KEY_C) {
+        if clear {
             d.clear_background(Color::BLACK);
         }
 
@@ -71,7 +80,12 @@ fn run(title: &str, arm_fn: fn() -> World) {
             },
         );
 
-        world.visualize(&mut d);
+        if let Some(gfx) = gfx.as_ref() {
+            gfx(&world, &mut d);
+        }
+        if draw_phys {
+            world.visualize(&mut d);
+        }
 
         let running_text;
         if running {
