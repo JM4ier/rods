@@ -3,41 +3,48 @@ use super::*;
 macro_rules! make_scenarios {
     ($(fn $name:ident() -> World $body:block)*) => {
         pub fn scenarios() -> Vec<(&'static str, fn() -> World)> {
-            let mut funs = Vec::new();
-            $(
-                funs.push((stringify!($name), $name as fn() -> World));
-            )*
-                funs
+            vec![$((stringify!($name), $name as fn() -> World)),*]
         }
-        $(
-            fn $name() -> World $body
-        )*
+        $(fn $name() -> World $body)*
     }
 }
 
 make_scenarios! {
     fn pendulum() -> World {
+        let wind = WindConfig {
+            dir: Vector2::new(1.0, 0.0),
+            speed: 250.0,
+            viscosity: 0.2,
+            low: 300.0,
+            high: 60.0,
+        };
         let config = WorldConfig {
-            rod_stiffness: 100.0,
-            angle_stiffness: 0.0,
+            rod_stiffness: 10_000.0,
+            angle_stiffness: 200.0,
+            general_damping: 0.02,
             rod_damping: 1.0,
-            general_damping: 0.0,
+            wind: vec![wind],
+            ..Default::default()
         };
 
         let mut world = World::from_config(config);
 
-        let origin = Vector2::new(320.0, 80.0);
-        let n = 20;
+        let origin = Vector2::new(320.0, 200.0);
+        let n = 50;
 
         let mut point = world.add_joint(origin);
         world.fix(point);
 
-        let distance = 14.0;
+        let distance = 5.0;
 
         for i in 1..=n {
             let new_point = world.add_joint(origin + Vector2::new(i as Float * distance, 0.0));
-            world.add_rod([point, new_point], 0.1);
+            world.add_rod([point, new_point], 1.0);
             point = new_point;
+        }
+
+        for i in 1..n {
+            world.keep_angle([i-1, i, i+1]);
         }
 
         world.add_bounds(Bounds {
@@ -54,6 +61,7 @@ make_scenarios! {
             rod_damping: 1.0,
             general_damping: 0.03,
             angle_stiffness: 5000.0,
+            ..Default::default()
         };
 
         let mut world = World::from_config(config);
@@ -76,12 +84,27 @@ make_scenarios! {
         world
     }
 
-    fn trees() -> World {
+    fn tree() -> World {
+        let wind = WindConfig {
+            dir: Vector2::new(1.0, 0.0),
+            speed: 50.0,
+            viscosity: 0.01,
+            low: 300.0,
+            high: 60.0,
+        };
+        let other_wind = WindConfig {
+            low: 567.0,
+            speed: 93.0,
+            ..wind
+        };
         let config = WorldConfig {
-            angle_stiffness: 50_000.0,
-            general_damping: 0.08,
-            rod_stiffness: 100.0,
+            angle_stiffness: 500_000.0,
+            rod_stiffness: 10_000.0,
             rod_damping: 50.0,
+            general_damping: 0.002,
+            wind: vec![wind, other_wind],
+            time_scale: Some(3.0),
+            ..Default::default()
         };
         let mut world = World::from_config(config);
 
@@ -108,9 +131,8 @@ make_scenarios! {
             mut prev: JointId,
             mut knot: JointId,
             mut dir: Vector2,
-
         ) {
-            let weight = dir.length() * 0.1;
+            let weight = dir.length() * 0.01;
             dir = dir * len();
 
             let bend = rand_float(-0.1, 0.1);
@@ -121,12 +143,10 @@ make_scenarios! {
                 prev = knot;
                 knot = new;
                 dir = dir.rotate(bend);
-
             }
 
             if depth == 0 {
                 return;
-
             }
 
             let ldir = dir.rotate(-ang());
@@ -143,7 +163,6 @@ make_scenarios! {
 
             generate_tree(depth - 1, world, knot, lchild, ldir);
             generate_tree(depth - 1, world, knot, rchild, rdir);
-
         }
 
         generate_tree(5, &mut world, root, origin, Vector2::new(0.0, -30.0));
@@ -174,6 +193,7 @@ fn circle_gen(circle_len: usize, off_1: usize, off_2: usize) -> World {
         rod_damping: 100.0,
         general_damping: 0.0,
         angle_stiffness: 80_000.0,
+        ..Default::default()
     };
 
     let mut world = World::from_config(config);
